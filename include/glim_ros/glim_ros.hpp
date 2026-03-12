@@ -38,6 +38,7 @@ public:
 
   void wait(bool auto_quit = false);
   void save(const std::string& path);
+  bool load(const std::string& path);
 
   const std::vector<std::shared_ptr<GenericTopicSubscription>>& extension_subscriptions();
 

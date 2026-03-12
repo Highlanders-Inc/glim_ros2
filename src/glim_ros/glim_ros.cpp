@@ -389,6 +389,28 @@ void GlimROS::save(const std::string& path) {
   }
 }
 
+bool GlimROS::load(const std::string& path) {
+  if (!global_mapping) {
+    spdlog::error("global_mapping is not initialized, cannot load map");
+    return false;
+  }
+
+  auto gm = std::dynamic_pointer_cast<GlobalMapping>(global_mapping->get_global_mapping());
+  if (!gm) {
+    spdlog::error("global_mapping does not support load (not GlobalMapping instance)");
+    return false;
+  }
+
+  spdlog::info("loading map from {}", path);
+  bool result = gm->load(path);
+  if (result) {
+    spdlog::info("map loaded successfully from {}", path);
+  } else {
+    spdlog::error("failed to load map from {}", path);
+  }
+  return result;
+}
+
 }  // namespace glim
 
 RCLCPP_COMPONENTS_REGISTER_NODE(glim::GlimROS);
