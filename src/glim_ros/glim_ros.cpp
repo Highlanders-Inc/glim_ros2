@@ -122,16 +122,14 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
     }
   }
 
-  // Global mapping
+  // Global mapping — keep raw ptr so we can call load() after viewers register callbacks
+  std::shared_ptr<GlobalMappingBase> global_mapping_raw;
   if (config_ros.param<bool>("glim_ros", "enable_global_mapping", true)) {
     const std::string global_mapping_so_name =
       glim::Config(glim::GlobalConfig::get_config_path("config_global_mapping")).param<std::string>("global_mapping", "so_name", "libglobal_mapping.so");
     if (!global_mapping_so_name.empty()) {
       spdlog::info("load {}", global_mapping_so_name);
-      auto global = GlobalMappingBase::load_module(global_mapping_so_name);
-      if (global) {
-        global_mapping.reset(new AsyncGlobalMapping(global));
-      }
+      global_mapping_raw = GlobalMappingBase::load_module(global_mapping_so_name);
     }
   }
 
@@ -171,6 +169,23 @@ GlimROS::GlimROS(const rclcpp::NodeOptions& options) : Node("glim_ros", options)
         }
       }
     }
+  }
+
+  // Load previous map AFTER extension modules (viewers) have registered their callbacks,
+  // so on_insert_submap / on_update_submaps fire into the already-running viewer threads.
+  std::string load_path;
+  this->declare_parameter<std::string>("load_path", "");
+  this->get_parameter<std::string>("load_path", load_path);
+  if (!load_path.empty() && global_mapping_raw) {
+    spdlog::info("loading map from {}", load_path);
+    if (!global_mapping_raw->load(load_path)) {
+      spdlog::warn("failed to load map from {}", load_path);
+    }
+  }
+
+  // Now wrap in AsyncGlobalMapping so the background thread starts after the initial load
+  if (global_mapping_raw) {
+    global_mapping.reset(new AsyncGlobalMapping(global_mapping_raw));
   }
 
   // ROS-related
@@ -387,28 +402,6 @@ void GlimROS::save(const std::string& path) {
   for (auto& module : extension_modules) {
     module->at_exit(path);
   }
-}
-
-bool GlimROS::load(const std::string& path) {
-  if (!global_mapping) {
-    spdlog::error("global_mapping is not initialized, cannot load map");
-    return false;
-  }
-
-  auto gm = std::dynamic_pointer_cast<GlobalMapping>(global_mapping->get_global_mapping());
-  if (!gm) {
-    spdlog::error("global_mapping does not support load (not GlobalMapping instance)");
-    return false;
-  }
-
-  spdlog::info("loading map from {}", path);
-  bool result = gm->load(path);
-  if (result) {
-    spdlog::info("map loaded successfully from {}", path);
-  } else {
-    spdlog::error("failed to load map from {}", path);
-  }
-  return result;
 }
 
 }  // namespace glim
