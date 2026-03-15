@@ -18,17 +18,7 @@ int main(int argc, char** argv) {
   glim->declare_parameter<std::string>("dump_path", dump_path);
   glim->get_parameter<std::string>("dump_path", dump_path);
 
-  std::string load_path = "";
-  glim->declare_parameter<std::string>("load_path", load_path);
-  glim->get_parameter<std::string>("load_path", load_path);
-
-  // Load previous map if load_path is specified
-  if (!load_path.empty()) {
-    spdlog::info("load_path: {}", load_path);
-    if (!glim->load(load_path)) {
-      spdlog::error("failed to load map from {}, starting fresh", load_path);
-    }
-  }
+  // load_path is handled inside GlimROS constructor
 
   rclcpp::spin(glim);
   rclcpp::shutdown();
